@@ -23,3 +23,5 @@ env/
 .ruff_cache/
 
 # 保留数据库文件，仓库需要一起提交 data.sqlite3
+data.sqlite3-wal
+data.sqlite3-shm
