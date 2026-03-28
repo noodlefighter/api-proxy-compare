@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="noise"></div>
+  <header class="shell header">
+    <div>
+      <div class="eyebrow">LLM API 中转站价格情报</div>
+      <h1>模型价格对比与排行</h1>
+    </div>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/models">模型对比</a>
+      <a href="/providers">站点列表</a>
+      <a href="/runs">采集日志</a>
+      <a class="button" href="/refresh">立即刷新</a>
+    </nav>
+  </header>
+  <main class="shell">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

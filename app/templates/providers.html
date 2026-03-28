@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <div class="section-head">
+    <h3>站点列表</h3>
+    <span class="muted">支持按状态和价格数量查看</span>
+  </div>
+  <div class="provider-grid">
+    {% for provider in providers %}
+    <a class="provider-card" href="/provider/{{ provider.id }}">
+      <div class="provider-top">
+        <strong>{{ provider.name }}</strong>
+        <span class="badge {{ 'on' if provider.enabled else 'off' }}">{{ '启用' if provider.enabled else '停用' }}</span>
+      </div>
+      <div class="muted">{{ provider.website_url }}</div>
+      <div class="provider-meta">{{ provider.price_count }} 条价格 · 充值比例 {{ '%.3f'|format(provider.recharge_ratio) }} · {{ provider.adapter_kind }} 适配器</div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

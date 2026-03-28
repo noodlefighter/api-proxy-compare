@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <div class="section-head">
+    <h3>采集日志</h3>
+    <span class="muted">记录每次同步结果，便于回溯</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>站点</th>
+        <th>状态</th>
+        <th>耗时</th>
+        <th>信息</th>
+        <th>开始时间</th>
+        <th>结束时间</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td>{{ run.provider_name or '未知' }}</td>
+        <td><span class="badge {{ run.status }}">{{ run.status }}</span></td>
+        <td>{{ run.duration_ms }} ms</td>
+        <td>{{ run.message }}</td>
+        <td>{{ run.started_at }}</td>
+        <td>{{ run.finished_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

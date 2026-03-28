@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <div class="section-head">
+    <h3>模型价格排行</h3>
+    <span class="muted">默认仅展示 Claude / GPT / Gemini，支持精确匹配</span>
+  </div>
+  <form class="searchbar" method="get" action="/models">
+    <input name="q" value="{{ q }}" placeholder="例如 GPT-4o / Claude 3.5 / Gemini">
+    <label class="inline-check" style="grid-column:auto; display:flex; align-items:center; gap:8px; margin:0;">
+      <input type="checkbox" name="exact" value="1" {% if exact %}checked{% endif %}>
+      精确匹配
+    </label>
+    <button type="submit">搜索</button>
+  </form>
+  <div class="muted" style="margin-top:10px;">当前默认过滤：{{ default_filter }}</div>
+</section>
+
+<section class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>模型</th>
+        <th>站点</th>
+        <th>网站币输入价</th>
+        <th>网站币输出价</th>
+        <th>人民币输入价</th>
+        <th>人民币输出价</th>
+        <th>人民币综合价</th>
+        <th>更新时间</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in comparisons %}
+      <tr>
+        <td>
+          <strong>{{ item.model.display_name }}</strong>
+          <div class="subtle">{{ item.model.standard_name }}</div>
+        </td>
+        <td>{{ item.price.provider_name }}</td>
+        <td>{{ '%.4f'|format(item.price.input_price) }}</td>
+        <td>{{ '%.4f'|format(item.price.output_price) }}</td>
+        <td>{{ '%.4f'|format(item.price.fiat_input_price) }} / CNY</td>
+        <td>{{ '%.4f'|format(item.price.fiat_output_price) }} / CNY</td>
+        <td><strong>{{ '%.4f'|format(item.effective_cost) }} / CNY</strong></td>
+        <td>{{ item.price.updated_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

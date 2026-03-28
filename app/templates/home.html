@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero card">
+  <div>
+    <p class="eyebrow">首页概览</p>
+    <h2>按模型看各站价格，按场景看综合成本。</h2>
+    <p class="muted">默认按输入:输出 = {{ input_weight }}:{{ output_weight }} 计算综合成本，可直接替换成更贴近你业务的权重。</p>
+  </div>
+  <form class="searchbar" method="get" action="/">
+    <input name="q" value="{{ q }}" placeholder="搜索模型、厂商或开发者">
+    <input name="in" value="{{ input_weight }}" type="number" step="0.1" min="0">
+    <input name="out" value="{{ output_weight }}" type="number" step="0.1" min="0">
+    <button type="submit">筛选</button>
+  </form>
+</section>
+
+<section class="grid two">
+  <div class="card">
+    <h3>热门模型</h3>
+    <div class="stat-list">
+      {% for model in models %}
+      <a class="stat-item" href="/models?q={{ model.standard_name }}">
+        <strong>{{ model.display_name }}</strong>
+        <span>{{ model.developer }} · {{ model.provider_count }} 家站点</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h3>站点概览</h3>
+    <div class="stat-list">
+      {% for provider in providers %}
+      <a class="stat-item" href="/provider/{{ provider.id }}">
+        <strong>{{ provider.name }}</strong>
+        <span>{{ provider.price_count }} 条价格 · {{ '启用' if provider.enabled else '停用' }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="section-head">
+    <h3>综合排行</h3>
+    <span class="muted">按当前权重计算</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>模型</th>
+        <th>站点</th>
+        <th>网站币输入价</th>
+        <th>网站币输出价</th>
+        <th>人民币输入价</th>
+        <th>人民币输出价</th>
+        <th>充值比例</th>
+        <th>人民币综合价</th>
+        <th>更新时间</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in comparisons %}
+      <tr>
+        <td>
+          <a href="/models?q={{ item.model.standard_name }}">{{ item.model.display_name }}</a>
+          <div class="subtle">{{ item.model.standard_name }}</div>
+        </td>
+        <td><a href="/provider/{{ item.price.provider_id }}">{{ item.price.provider_name }}</a></td>
+        <td>{{ '%.4f'|format(item.price.input_price) }} / {{ item.price.unit }}</td>
+        <td>{{ '%.4f'|format(item.price.output_price) }} / {{ item.price.unit }}</td>
+        <td>{{ '%.4f'|format(item.price.fiat_input_price) }} / CNY</td>
+        <td>{{ '%.4f'|format(item.price.fiat_output_price) }} / CNY</td>
+        <td class="subtle">× {{ '%.3f'|format(item.price.recharge_ratio) }}</td>
+        <td><strong>{{ '%.4f'|format(item.effective_cost) }} / CNY</strong></td>
+        <td>{{ item.price.updated_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <div class="section-head">
+    <h3>采集日志</h3>
+    <span class="muted">最近 {{ latest_runs|length }} 条</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>站点</th><th>状态</th><th>耗时</th><th>信息</th><th>时间</th></tr>
+    </thead>
+    <tbody>
+      {% for run in latest_runs %}
+      <tr>
+        <td>{{ run.provider_name or '未知' }}</td>
+        <td><span class="badge {{ run.status }}">{{ run.status }}</span></td>
+        <td>{{ run.duration_ms }} ms</td>
+        <td>{{ run.message }}</td>
+        <td>{{ run.started_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
