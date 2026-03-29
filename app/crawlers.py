@@ -4,10 +4,9 @@ import json
 import random
 import re
 from dataclasses import dataclass
-from importlib import import_module
-from pathlib import Path
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from typing import Any
 
 from .config import settings
@@ -122,10 +121,25 @@ def _parse_context_length(value: str | None) -> int:
 class PricingApiAdapter(BaseAdapter):
     api_url = ""
 
+    def _resolve_api_url(self, provider_row: Any) -> str:
+        if self.api_url:
+            return self.api_url
+        website_url = str(provider_row["website_url"] or "").strip()
+        if not website_url:
+            return ""
+
+        parsed = urlparse(website_url)
+        if parsed.scheme and parsed.netloc:
+            if "/api/" in parsed.path:
+                return website_url.rstrip("/")
+            return f"{parsed.scheme}://{parsed.netloc}/api/pricing"
+        return website_url.rstrip("/") + "/api/pricing"
+
     def collect(self, provider_row: Any) -> list[CollectedPrice]:
-        payload = fetch_json(
-            self.api_url or provider_row["website_url"].rstrip("/") + "/api/pricing"
-        )
+        endpoint = self._resolve_api_url(provider_row)
+        if not endpoint:
+            raise RuntimeError("站点地址不能为空")
+        payload = fetch_json(endpoint)
         data = payload.get("data", []) if isinstance(payload, dict) else []
         group_ratio = (
             payload.get("group_ratio", {}) if isinstance(payload, dict) else {}
@@ -162,7 +176,7 @@ class PricingApiAdapter(BaseAdapter):
                     output_price=round(nominal_output * selected_ratio, 6),
                     currency=currency,
                     unit=unit,
-                    source_url=self.api_url or provider_row["website_url"],
+                    source_url=endpoint,
                     confidence=0.98,
                 )
             )
@@ -197,214 +211,12 @@ class PricingApiAdapter(BaseAdapter):
         return min(ratios)
 
 
-class IkunCodeApiAdapter(PricingApiAdapter):
-    api_url = "https://api.ikuncode.cc/api/pricing"
-
-
-class JimikuApiAdapter(PricingApiAdapter):
-    api_url = "https://jimiku.com/api/pricing"
-
-
-class BltcyApiAdapter(PricingApiAdapter):
-    api_url = "https://api.bltcy.ai/api/pricing"
-
-
-class PackyApiPricingAdapter(PricingApiAdapter):
-    api_url = "https://www.packyapi.com/api/pricing"
-
-
-class BrowserPricingAdapter(BaseAdapter):
-    site_name = ""
-    start_url = ""
-    model_aliases: dict[str, str] = {}
-
-    def collect(self, provider_row: Any) -> list[CollectedPrice]:
-        page_text = self._render_page(provider_row)
-        collected = self._parse_text(provider_row, page_text)
-        if not collected:
-            raise RuntimeError(
-                f"{self.site_name or provider_row['name']} 未提取到价格信息"
-            )
-        return collected
-
-    def _render_page(self, provider_row: Any) -> str:
-        try:
-            playwright_sync = import_module("playwright.sync_api")
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError("请先安装 playwright 以启用浏览器采集") from exc
-
-        chromium = getattr(playwright_sync, "sync_playwright")
-        storage_state_path = str(provider_row["login_state_path"] or "").strip()
-        browser_profile_dir = str(provider_row["browser_profile_dir"] or "").strip()
-        url = self.start_url or str(provider_row["website_url"])
-
-        with chromium() as p:
-            if browser_profile_dir:
-                context = p.chromium.launch_persistent_context(
-                    user_data_dir=browser_profile_dir,
-                    headless=True,
-                    locale="zh-CN",
-                )
-                page = context.pages[0] if context.pages else context.new_page()
-            else:
-                browser = p.chromium.launch(headless=True)
-                context_kwargs: dict[str, Any] = {"locale": "zh-CN"}
-                if storage_state_path and Path(storage_state_path).exists():
-                    context_kwargs["storage_state"] = storage_state_path
-                context = browser.new_context(**context_kwargs)
-                page = context.new_page()
-
-            try:
-                page.goto(url, wait_until="networkidle", timeout=45000)
-                try:
-                    page.wait_for_timeout(1500)
-                except Exception:
-                    pass
-                text = page.locator("body").inner_text(timeout=15000)
-            finally:
-                context.close()
-                if not browser_profile_dir:
-                    browser.close()  # type: ignore[attr-defined]
-
-        return text
-
-    def _parse_text(self, provider_row: Any, text: str) -> list[CollectedPrice]:
-        blocks = [
-            block.strip() for block in re.split(r"\n\s*\n", text) if block.strip()
-        ]
-        collected: list[CollectedPrice] = []
-        aliases = self.model_aliases
-        for block in blocks:
-            lower = block.lower()
-            if not any(alias in lower for alias in aliases):
-                continue
-            prices = self._extract_prices(block)
-            if not prices:
-                continue
-            standard_name = self._match_standard_name(lower)
-            if not standard_name:
-                continue
-            display_name = self._display_name(standard_name)
-            collected.append(
-                CollectedPrice(
-                    raw_name=display_name,
-                    standard_name=standard_name,
-                    display_name=display_name,
-                    developer=self._developer_for(standard_name),
-                    context_length=self._context_length_for(standard_name),
-                    input_price=prices[0],
-                    output_price=prices[1] if len(prices) > 1 else prices[0],
-                    currency=self._currency_for(block),
-                    unit=self._unit_for(block),
-                    source_url=str(provider_row["website_url"]),
-                    confidence=0.78,
-                )
-            )
-        return collected
-
-    def _extract_prices(self, block: str) -> list[float]:
-        values: list[float] = []
-        for match in re.finditer(r"(?<!\d)(\d+(?:\.\d+)?)(?!\d)", block):
-            value = float(match.group(1))
-            if 0 < value < 1000:
-                values.append(value)
-        return values[:2]
-
-    def _match_standard_name(self, lower: str) -> str:
-        for alias, standard_name in self.model_aliases.items():
-            if alias in lower:
-                return standard_name
-        return ""
-
-    def _display_name(self, standard_name: str) -> str:
-        return {
-            "gpt-4o": "GPT-4o",
-            "claude-3.5-sonnet": "Claude 3.5 Sonnet",
-            "gemini-1.5-pro": "Gemini 1.5 Pro",
-            "deepseek-v3": "DeepSeek V3",
-            "qwen2.5-max": "Qwen2.5-Max",
-            "gpt-4.1": "GPT-4.1",
-        }.get(standard_name, standard_name)
-
-    def _developer_for(self, standard_name: str) -> str:
-        return {
-            "gpt-4o": "OpenAI",
-            "claude-3.5-sonnet": "Anthropic",
-            "gemini-1.5-pro": "Google",
-            "deepseek-v3": "DeepSeek",
-            "qwen2.5-max": "Alibaba",
-            "gpt-4.1": "OpenAI",
-        }.get(standard_name, "")
-
-    def _context_length_for(self, standard_name: str) -> int:
-        return {
-            "gpt-4o": 128000,
-            "claude-3.5-sonnet": 200000,
-            "gemini-1.5-pro": 1000000,
-            "deepseek-v3": 64000,
-            "qwen2.5-max": 128000,
-            "gpt-4.1": 128000,
-        }.get(standard_name, 0)
-
-    def _currency_for(self, block: str) -> str:
-        if "¥" in block or "元" in block:
-            return "CNY"
-        return "USD"
-
-    def _unit_for(self, block: str) -> str:
-        if "1k" in block.lower() or "千" in block:
-            return "1K tokens"
-        return "1M tokens"
-
-
-class IkunCodeAdapter(BrowserPricingAdapter):
-    site_name = "IKunCode"
-    start_url = "https://api.ikuncode.cc/pricing"
-    model_aliases = {
-        "gpt-4o": "gpt-4o",
-        "claude 3.5": "claude-3.5-sonnet",
-        "claude-3.5": "claude-3.5-sonnet",
-        "gemini 1.5": "gemini-1.5-pro",
-        "deepseek": "deepseek-v3",
-        "qwen": "qwen2.5-max",
-    }
-
-
-class JimikuAdapter(BrowserPricingAdapter):
-    site_name = "Jimiku"
-    start_url = "https://jimiku.com/pricing"
-    model_aliases = IkunCodeAdapter.model_aliases
-
-
-class BltcyAdapter(BrowserPricingAdapter):
-    site_name = "柏拉图AI"
-    start_url = "https://api.bltcy.ai/models"
-    model_aliases = {
-        "gpt": "gpt-4.1",
-        "claude": "claude-3.5-sonnet",
-        "gemini": "gemini-1.5-pro",
-        "deepseek": "deepseek-v3",
-        "qwen": "qwen2.5-max",
-    }
-
-
-class PackyApiAdapter(BrowserPricingAdapter):
-    site_name = "PackyAPI"
-    start_url = "https://www.packyapi.com/pricing"
-    model_aliases = IkunCodeAdapter.model_aliases
-
+api_adapter = PricingApiAdapter()
 
 ADAPTERS: dict[str, BaseAdapter] = {
     "mock": MockAdapter(),
     "json": JsonEndpointAdapter(),
-    "ikuncode_api": IkunCodeApiAdapter(),
-    "jimiku_api": JimikuApiAdapter(),
-    "bltcy_api": BltcyApiAdapter(),
-    "packyapi_api": PackyApiPricingAdapter(),
-    "ikuncode_browser": IkunCodeAdapter(),
-    "jimiku_browser": JimikuAdapter(),
-    "bltcy_browser": BltcyAdapter(),
-    "packyapi_browser": PackyApiPricingAdapter(),
+    "api": api_adapter,
 }
 
 

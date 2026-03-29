@@ -80,6 +80,25 @@ h3 { font-size: 22px; }
   color: var(--muted);
 }
 
+.notice {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 10px 0 14px;
+}
+
+.notice.success {
+  color: var(--success);
+  border-color: rgba(124, 227, 177, 0.4);
+  background: rgba(124, 227, 177, 0.08);
+}
+
+.notice.error {
+  color: var(--danger);
+  border-color: rgba(255, 122, 144, 0.4);
+  background: rgba(255, 122, 144, 0.08);
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--line);
@@ -115,6 +134,17 @@ input {
 
 button { color: var(--text); cursor: pointer; }
 
+button.danger {
+  border-color: rgba(255, 122, 144, 0.35);
+  color: var(--danger);
+  background: rgba(255, 122, 144, 0.1);
+}
+
+button.danger:hover {
+  border-color: rgba(255, 122, 144, 0.6);
+  background: rgba(255, 122, 144, 0.16);
+}
+
 .grid.two {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -131,6 +161,9 @@ button { color: var(--text); cursor: pointer; }
   border-radius: 18px;
   padding: 14px 16px;
   background: rgba(255,255,255,0.03);
+}
+
+.stat-item {
   display: grid;
   gap: 6px;
 }
@@ -140,6 +173,19 @@ button { color: var(--text); cursor: pointer; }
   background: rgba(139, 211, 255, 0.06);
 }
 
+.provider-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.provider-link {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
 .provider-top, .section-head {
   display: flex;
   justify-content: space-between;
@@ -147,7 +193,30 @@ button { color: var(--text); cursor: pointer; }
   gap: 12px;
 }
 
-.provider-meta { color: var(--muted); font-size: 14px; }
+.provider-top {
+  justify-content: flex-start;
+}
+
+.provider-meta {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.provider-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.provider-actions .badge {
+  white-space: nowrap;
+}
+
+.provider-delete-form {
+  margin: 0;
+}
 
 .provider-form {
   display: grid;
@@ -228,5 +297,7 @@ th { color: var(--muted); font-weight: 600; }
   .header { flex-direction: column; align-items: start; }
   .searchbar { grid-template-columns: 1fr; }
   .provider-form { grid-template-columns: 1fr; }
+  .provider-card { grid-template-columns: 1fr; }
+  .provider-actions { flex-direction: row; justify-content: space-between; align-items: center; }
   .shell { width: min(1180px, calc(100vw - 20px)); }
 }

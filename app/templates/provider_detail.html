@@ -9,7 +9,7 @@
     <span class="badge {{ 'on' if provider.enabled else 'off' }}">{{ '启用' if provider.enabled else '停用' }}</span>
   </div>
   <p class="muted">{{ provider.notes }}</p>
-  <div class="provider-meta">充值比例：{{ '%.3f'|format(provider.recharge_ratio) }} · 适配器：{{ provider.adapter_kind }}</div>
+  <div class="provider-meta">充值比例：{{ '%.3f'|format(provider.recharge_ratio) }} · 采集方式：{{ provider.adapter_kind }}</div>
 </section>
 
 <section class="card">
@@ -19,20 +19,11 @@
   </div>
   <form class="provider-form" method="post" action="/provider/{{ provider.id }}">
     <label>站点地址<input name="website_url" value="{{ provider.website_url }}"></label>
-    <label>适配器<select name="adapter_kind">
+    <label>采集方式<select name="adapter_kind">
       <option value="mock" {% if provider.adapter_kind == 'mock' %}selected{% endif %}>mock</option>
-      <option value="ikuncode_api" {% if provider.adapter_kind == 'ikuncode_api' %}selected{% endif %}>ikuncode_api</option>
-      <option value="jimiku_api" {% if provider.adapter_kind == 'jimiku_api' %}selected{% endif %}>jimiku_api</option>
-      <option value="bltcy_api" {% if provider.adapter_kind == 'bltcy_api' %}selected{% endif %}>bltcy_api</option>
-      <option value="packyapi_api" {% if provider.adapter_kind == 'packyapi_api' %}selected{% endif %}>packyapi_api</option>
-      <option value="ikuncode_browser" {% if provider.adapter_kind == 'ikuncode_browser' %}selected{% endif %}>ikuncode_browser</option>
-      <option value="jimiku_browser" {% if provider.adapter_kind == 'jimiku_browser' %}selected{% endif %}>jimiku_browser</option>
-      <option value="bltcy_browser" {% if provider.adapter_kind == 'bltcy_browser' %}selected{% endif %}>bltcy_browser</option>
-      <option value="packyapi_browser" {% if provider.adapter_kind == 'packyapi_browser' %}selected{% endif %}>packyapi_browser</option>
+      <option value="api" {% if provider.adapter_kind == 'api' %}selected{% endif %}>api</option>
     </select></label>
     <label>充值比例<input name="recharge_ratio" type="number" step="0.001" min="0" value="{{ provider.recharge_ratio }}"></label>
-    <label>登录态文件<input name="login_state_path" value="{{ provider.login_state_path }}" placeholder="playwright storage_state.json"></label>
-    <label>浏览器配置目录<input name="browser_profile_dir" value="{{ provider.browser_profile_dir }}" placeholder="user data dir"></label>
     <label>备注<textarea name="notes" rows="3">{{ provider.notes }}</textarea></label>
     <label class="inline-check"><input type="checkbox" name="enabled" {% if provider.enabled %}checked{% endif %}> 启用采集</label>
     <button type="submit">保存配置</button>

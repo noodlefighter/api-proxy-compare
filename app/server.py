@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import sqlite3
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -14,6 +15,8 @@ from .db import fetch_one, initialize_db
 from .scheduler import SchedulerThread
 from .services import (
     compare_models,
+    create_provider,
+    delete_provider,
     latest_runs,
     get_provider,
     list_prices_for_model,
@@ -57,7 +60,9 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _redirect(self, location: str) -> None:
+    def _redirect(self, location: str, params: dict[str, str] | None = None) -> None:
+        if params:
+            location = f"{location}?{urlencode(params)}"
         self.send_response(HTTPStatus.SEE_OTHER)
         self.send_header("Location", location)
         self.end_headers()
@@ -115,7 +120,15 @@ class AppHandler(BaseHTTPRequestHandler):
 
         if path == "/providers":
             providers = provider_stats()
-            body = render("providers.html", title="站点列表", providers=providers)
+            notice = query.get("msg", [""])[0].strip()
+            error = query.get("error", [""])[0].strip()
+            body = render(
+                "providers.html",
+                title="站点列表",
+                providers=providers,
+                notice=error or notice,
+                notice_kind="error" if error else "success",
+            )
             self._send(body)
             return
 
@@ -168,6 +181,47 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path == "/providers":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8")
+            form = parse_qs(raw)
+            try:
+                recharge_ratio = float(form.get("recharge_ratio", ["1.0"])[0])
+            except ValueError:
+                recharge_ratio = 1.0
+
+            payload = {
+                "name": form.get("name", [""])[0].strip(),
+                "website_url": form.get("website_url", [""])[0].strip(),
+                "adapter_kind": form.get("adapter_kind", ["api"])[0].strip(),
+                "recharge_ratio": recharge_ratio,
+                "enabled": 1 if form.get("enabled") else 0,
+                "notes": form.get("notes", [""])[0].strip(),
+            }
+            try:
+                create_provider(payload)
+            except ValueError as exc:
+                self._redirect("/providers", {"error": str(exc)})
+            except sqlite3.IntegrityError:
+                self._redirect("/providers", {"error": "站点名称已存在，请使用其他名称"})
+            else:
+                self._redirect("/providers", {"msg": f"已添加站点：{payload['name']}"})
+            return
+
+        if path.startswith("/provider/") and path.endswith("/delete"):
+            try:
+                provider_id = int(path.split("/")[2])
+            except Exception:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            deleted = delete_provider(provider_id)
+            if not deleted:
+                self._redirect("/providers", {"error": "要删除的站点不存在"})
+                return
+            self._redirect("/providers", {"msg": "站点已删除"})
+            return
+
         if path.startswith("/provider/"):
             try:
                 provider_id = int(path.rsplit("/", 1)[-1])
@@ -186,12 +240,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 provider_id,
                 {
                     "website_url": form.get("website_url", [""])[0].strip(),
-                    "adapter_kind": form.get("adapter_kind", ["mock"])[0].strip(),
+                    "adapter_kind": form.get("adapter_kind", ["api"])[0].strip(),
                     "recharge_ratio": recharge_ratio,
-                    "login_state_path": form.get("login_state_path", [""])[0].strip(),
-                    "browser_profile_dir": form.get("browser_profile_dir", [""])[
-                        0
-                    ].strip(),
                     "enabled": enabled,
                     "notes": form.get("notes", [""])[0].strip(),
                 },

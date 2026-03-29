@@ -20,10 +20,8 @@ def seed_demo_data() -> None:
             (
                 "ikuncode",
                 "https://api.ikuncode.cc/pricing",
-                "ikuncode_api",
+                "api",
                 1.0,
-                "",
-                "",
                 1,
                 "真实站点，接口直抓",
                 now,
@@ -32,10 +30,8 @@ def seed_demo_data() -> None:
             (
                 "jimiku",
                 "https://jimiku.com/pricing",
-                "jimiku_api",
+                "api",
                 1.0,
-                "",
-                "",
                 1,
                 "真实站点，接口直抓",
                 now,
@@ -44,10 +40,8 @@ def seed_demo_data() -> None:
             (
                 "bltcy",
                 "https://api.bltcy.ai/models",
-                "bltcy_api",
+                "api",
                 1.0,
-                "",
-                "",
                 1,
                 "真实站点，接口直抓",
                 now,
@@ -56,10 +50,8 @@ def seed_demo_data() -> None:
             (
                 "packyapi",
                 "https://www.packyapi.com/pricing",
-                "packyapi_api",
+                "api",
                 1.0,
-                "",
-                "",
                 1,
                 "真实站点，接口直抓",
                 now,
@@ -70,8 +62,6 @@ def seed_demo_data() -> None:
                 "https://example.com/proxyhub",
                 "mock",
                 1.0,
-                "",
-                "",
                 0,
                 "演示数据",
                 now,
@@ -82,8 +72,6 @@ def seed_demo_data() -> None:
                 "https://example.com/moonrelay",
                 "mock",
                 1.0,
-                "",
-                "",
                 0,
                 "演示数据",
                 now,
@@ -93,14 +81,12 @@ def seed_demo_data() -> None:
         for provider in providers:
             conn.execute(
                 """
-                INSERT INTO providers (name, website_url, adapter_kind, recharge_ratio, login_state_path, browser_profile_dir, enabled, notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO providers (name, website_url, adapter_kind, recharge_ratio, enabled, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(name) DO UPDATE SET
                     website_url=excluded.website_url,
                     adapter_kind=excluded.adapter_kind,
                     recharge_ratio=excluded.recharge_ratio,
-                    login_state_path=excluded.login_state_path,
-                    browser_profile_dir=excluded.browser_profile_dir,
                     enabled=excluded.enabled,
                     notes=excluded.notes,
                     updated_at=excluded.updated_at
@@ -135,6 +121,13 @@ def seed_demo_data() -> None:
 
         conn.execute(
             "UPDATE providers SET enabled=0 WHERE website_url LIKE 'https://example.com/%'"
+        )
+        conn.execute(
+            """
+            UPDATE providers
+            SET adapter_kind='api'
+            WHERE adapter_kind NOT IN ('api', 'mock', 'json')
+            """
         )
 
     refresh_all(force=True)
@@ -480,15 +473,13 @@ def update_provider(provider_id: int, payload: dict[str, Any]) -> None:
     execute(
         """
         UPDATE providers
-        SET website_url=?, adapter_kind=?, recharge_ratio=?, login_state_path=?, browser_profile_dir=?, enabled=?, notes=?, updated_at=?
+        SET website_url=?, adapter_kind=?, recharge_ratio=?, enabled=?, notes=?, updated_at=?
         WHERE id=?
         """,
         (
             payload["website_url"],
             payload["adapter_kind"],
             payload["recharge_ratio"],
-            payload["login_state_path"],
-            payload["browser_profile_dir"],
             payload["enabled"],
             payload["notes"],
             utc_now(),
@@ -496,3 +487,40 @@ def update_provider(provider_id: int, payload: dict[str, Any]) -> None:
         ),
     )
     recompute_provider_fiat_prices(provider_id)
+
+
+def create_provider(payload: dict[str, Any]) -> int:
+    name = str(payload.get("name", "")).strip()
+    website_url = str(payload.get("website_url", "")).strip()
+    if not name:
+        raise ValueError("站点名称不能为空")
+    if not website_url:
+        raise ValueError("站点地址不能为空")
+
+    now = utc_now()
+    with db_session() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO providers (name, website_url, adapter_kind, recharge_ratio, enabled, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                website_url,
+                str(payload.get("adapter_kind", "api")).strip() or "api",
+                float(payload.get("recharge_ratio", 1.0) or 1.0),
+                1 if payload.get("enabled") else 0,
+                str(payload.get("notes", "")).strip(),
+                now,
+                now,
+            ),
+        )
+        if cursor.lastrowid is None:
+            raise RuntimeError("创建站点失败")
+        return int(cursor.lastrowid)
+
+
+def delete_provider(provider_id: int) -> bool:
+    with db_session() as conn:
+        cursor = conn.execute("DELETE FROM providers WHERE id=?", (provider_id,))
+        return cursor.rowcount > 0

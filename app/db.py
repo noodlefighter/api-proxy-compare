@@ -21,8 +21,6 @@ CREATE TABLE IF NOT EXISTS providers (
     website_url TEXT NOT NULL,
     adapter_kind TEXT NOT NULL DEFAULT 'mock',
     recharge_ratio REAL NOT NULL DEFAULT 1.0,
-    login_state_path TEXT NOT NULL DEFAULT '',
-    browser_profile_dir TEXT NOT NULL DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 1,
     notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
@@ -125,8 +123,6 @@ def ensure_provider_columns() -> None:
     columns = {row["name"] for row in fetch_all("PRAGMA table_info(providers)")}
     additions = [
         ("recharge_ratio", "REAL NOT NULL DEFAULT 1.0"),
-        ("login_state_path", "TEXT NOT NULL DEFAULT ''"),
-        ("browser_profile_dir", "TEXT NOT NULL DEFAULT ''"),
     ]
     for column, ddl in additions:
         if column not in columns:
